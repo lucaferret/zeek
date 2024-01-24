@@ -430,7 +430,7 @@ void Connection::NdpiAnalyzePacket(Packet* pkt) {
 	uint8_t protocol_was_guessed = 0;
     time_ms = ((u_int64_t)pkt->ts.tv_sec) * 1000 + pkt->ts.tv_usec / 1000;
     // clear bit if risk type was of unidirectional traffic at previous iteration
-    if ( ! pkt->is_orig  ) 
+    if ( saw_first_resp_packet  ) 
         nDPI_flow->risk &= ~(1ULL << NDPI_UNIDIRECTIONAL_TRAFFIC);
     ++nDPI_packet_processed;
 	switch (pkt->link_type) {
