@@ -102,6 +102,7 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
     --with-geoip=PATH      path to the libmaxminddb install root
     --with-jemalloc=PATH   path to jemalloc install root
     --with-krb5=PATH       path to krb5 install root
+    --with-ndpi=PATH	   path to nDPI install root
     --with-perftools=PATH  path to Google Perftools install root
     --with-python-inc=PATH path to Python headers
     --with-python-lib=PATH path to libpython
@@ -360,6 +361,10 @@ while [ $# -ne 0 ]; do
         --with-libkqueue=*)
             append_cache_entry LIBKQUEUE_ROOT_DIR PATH $optarg
             ;;
+        --with-ndpi=*)
+        	append_cache_entry NDPI_LIB_PATH PATH $optarg
+        	append_cache_entry ENABLE_NDPI BOOL true
+        	;;
         --with-pcap=*)
             append_cache_entry PCAP_ROOT_DIR PATH $optarg
             ;;

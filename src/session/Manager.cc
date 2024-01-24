@@ -75,11 +75,27 @@ private:
 
 } // namespace detail
 
-Manager::Manager() { stats = new detail::ProtocolStats(); }
+Manager::Manager() { 
+    stats = new detail::ProtocolStats(); 
+
+#ifdef NDPI_LIB
+    ndpi_struct = ndpi_init_detection_module(ndpi_no_prefs);
+    NDPI_PROTOCOL_BITMASK protos;
+    NDPI_BITMASK_SET_ALL(protos);
+    ndpi_set_protocol_detection_bitmask2(ndpi_struct, &protos);
+    ndpi_finalize_initialization(ndpi_struct);
+#endif
+}
 
 Manager::~Manager() {
     Clear();
     delete stats;
+
+#ifdef NDPI_LIB
+    if (ndpi_struct != NULL) {
+        ndpi_exit_detection_module(ndpi_struct);
+    }
+#endif
 }
 
 void Manager::Done() {}

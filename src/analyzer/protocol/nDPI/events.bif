@@ -1,0 +1,7 @@
+## Generated after nDPI identifies the application layer protocol of a connection
+## 
+## c: The connection
+## 
+## info: The record that contains the information extracted by nDPI 
+
+event ndpi_done%(c: connection, info: NDPI::ndpi_info%);

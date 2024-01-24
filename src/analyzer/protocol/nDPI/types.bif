@@ -1,0 +1,3 @@
+module NDPI;
+
+type ndpi_info: record;

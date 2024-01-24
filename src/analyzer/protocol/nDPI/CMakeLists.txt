@@ -1,0 +1,10 @@
+zeek_add_plugin(
+    Zeek
+    NDPI
+    SOURCES
+    NDPI.cc
+    Plugin.cc
+    BIFS
+    events.bif
+    types.bif
+)

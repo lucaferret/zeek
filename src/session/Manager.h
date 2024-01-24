@@ -11,6 +11,13 @@
 #include "zeek/NetVar.h"
 #include "zeek/session/Session.h"
 
+#ifdef NDPI_LIB
+extern "C" {
+    #include <ndpi_api.h>
+    #include <ndpi_define.h>
+    }
+#endif 
+
 namespace zeek {
 
 namespace detail {
@@ -83,6 +90,10 @@ public:
     void Weird(const char* name, const IP_Hdr* ip, const char* addl = "");
 
     unsigned int CurrentSessions() { return session_map.size(); }
+
+#ifdef NDPI_LIB
+    struct ndpi_detection_module_struct* ndpi_struct;
+#endif
 
 private:
     using SessionMap = std::unordered_map<detail::Key, Session*, detail::KeyHash>;

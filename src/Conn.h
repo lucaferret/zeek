@@ -19,6 +19,15 @@
 #include "zeek/iosource/Packet.h"
 #include "zeek/session/Session.h"
 
+#ifdef NDPI_LIB
+#include "zeek/analyzer/protocol/nDPI/NDPI.h"
+
+extern "C" {
+	#include <ndpi_api.h>
+	#include <ndpi_typedefs.h>
+	}
+#endif
+
 namespace zeek {
 
 class Connection;
@@ -201,6 +210,9 @@ public:
 
     bool PermitWeird(const char* name, uint64_t threshold, uint64_t rate, double duration);
 
+#ifdef NDPI_LIB
+    void NdpiAnalyzePacket(Packet* pkt);
+#endif
 private:
     friend class session::detail::Timer;
 
@@ -232,6 +244,17 @@ private:
     // Count number of connections.
     static uint64_t total_connections;
     static uint64_t current_connections;
+
+#ifdef NDPI_LIB
+	struct ndpi_flow_struct* nDPI_flow;
+    struct ndpi_proto l7_protocol;
+    int nDPI_packet_processed;
+    zeek::analyzer::nDPI::NDPIAnalyzer* ndpi_analyzer;
+    int end_detection;
+
+    void NdpiInformation();
+#endif
+
 };
 
 } // namespace zeek

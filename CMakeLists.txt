@@ -30,6 +30,7 @@ endif ()
 # CMake options (Boolean flags).
 option(ENABLE_DEBUG "Build Zeek with additional debugging support." ${ENABLE_DEBUG_DEFAULT})
 option(ENABLE_JEMALLOC "Link against jemalloc." OFF)
+option(ENABLE_NDPI "Add nDPI support." OFF)
 option(ENABLE_PERFTOOLS "Build with support for Google perftools." OFF)
 option(ENABLE_ZEEK_UNIT_TESTS "Build the C++ unit tests." ON)
 option(INSTALL_AUX_TOOLS "Install additional tools from auxil." ${ZEEK_INSTALL_TOOLS_DEFAULT})
@@ -1053,6 +1054,18 @@ if (FTS_FOUND)
     list(APPEND OPTLIBS ${FTS_LIBRARY})
     include_directories(BEFORE ${FTS_INCLUDE_DIR})
 endif ()
+
+# Linking nDPI library 
+if (ENABLE_NDPI)
+    find_library(NDPI_LIBRARY NAMES ndpi PATHS ${NDPI_LIB_PATH}/src/lib)
+    if (NDPI_LIBRARY)
+        target_link_libraries(zeek_exe PRIVATE ${NDPI_LIBRARY})
+        include_directories(${NDPI_LIB_PATH}/src/include)
+        add_definitions(-DNDPI_LIB=1)
+    else ()
+        message(FATAL_ERROR "nDPI library not fount. Make sure to specify the rigth path.")
+    endif ()
+endif()
 
 # Any headers that are possibly bundled in the Zeek source-tree and that are
 # supposed to have priority over any preexisting/system-wide headers need to

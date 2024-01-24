@@ -52,7 +52,10 @@ bool IPBasedAnalyzer::AnalyzePacket(size_t len, const uint8_t* data, Packet* pkt
 
     if ( ! conn )
         return false;
-
+    //Send the packet to ndpi analyzer to obtain the application layer protocol 
+#ifdef NDPI_LIB
+    conn->NdpiAnalyzePacket(pkt);
+#endif
     // If we successfully made a connection for this packet that means it'll eventually
     // get logged, which means we can mark this packet as having been processed.
     pkt->processed = true;

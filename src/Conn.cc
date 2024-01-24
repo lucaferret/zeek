@@ -65,6 +65,19 @@ Connection::Connection(const detail::ConnKey& k, double t, const ConnTuple* id, 
     ++total_connections;
 
     encapsulation = pkt->encap;
+
+#ifdef NDPI_LIB
+    zeek::analyzer::Analyzer* ndpi_mgr = analyzer_mgr->InstantiateAnalyzer("NDPI", this);
+    ndpi_analyzer = dynamic_cast<zeek::analyzer::nDPI::NDPIAnalyzer*>(ndpi_mgr);
+    
+	nDPI_flow = (struct ndpi_flow_struct *)ndpi_flow_malloc(SIZEOF_FLOW_STRUCT);
+	if (nDPI_flow == NULL) 
+        reporter->FatalError("Not enough memory for nDPI flow struct");
+	memset(nDPI_flow, 0, SIZEOF_FLOW_STRUCT);
+    l7_protocol;
+    nDPI_packet_processed = 0;
+    end_detection = 0;
+#endif
 }
 
 Connection::~Connection() {
@@ -79,6 +92,12 @@ Connection::~Connection() {
     delete adapter;
 
     --current_connections;
+
+#ifdef NDPI_LIB
+    ndpi_flow_free(nDPI_flow);
+    ndpi_analyzer->Done();
+    delete ndpi_analyzer;
+#endif
 }
 
 void Connection::CheckEncapsulation(const std::shared_ptr<EncapsulationStack>& arg_encap) {
@@ -127,6 +146,12 @@ void Connection::Done() {
         if ( ! adapter->IsFinished() )
             adapter->Done();
     }
+
+#ifdef NDPI_LIB
+    if ( l7_protocol.app_protocol != NDPI_PROTOCOL_UNKNOWN )
+        NdpiInformation();
+    ndpi_analyzer->NDPIHandler(conn_val);
+#endif
 }
 
 void Connection::NextPacket(double t, bool is_orig, const IP_Hdr* ip, int len, int caplen, const u_char*& data,
@@ -391,5 +416,118 @@ void Connection::CheckFlowLabel(bool is_orig, uint32_t flow_label) {
 bool Connection::PermitWeird(const char* name, uint64_t threshold, uint64_t rate, double duration) {
     return detail::PermitWeird(weird_state, name, threshold, rate, duration);
 }
+
+#ifdef NDPI_LIB
+void Connection::NdpiAnalyzePacket(Packet* pkt) {
+    const struct ndpi_iphdr* ip;
+    const struct ndpi_ipv6hdr* ip6;
+    const struct ndpi_ethhdr* ethernet;
+    u_int64_t time_ms;
+    uint16_t ip_size;
+    const u_int16_t eth_offset = 0;
+    u_int16_t ip_offset;
+    uint16_t type;
+	uint8_t protocol_was_guessed = 0;
+    time_ms = ((u_int64_t)pkt->ts.tv_sec) * 1000 + pkt->ts.tv_usec / 1000;
+    // clear bit if risk type was of unidirectional traffic at previous iteration
+    if ( ! pkt->is_orig  ) 
+        nDPI_flow->risk &= ~(1ULL << NDPI_UNIDIRECTIONAL_TRAFFIC);
+    ++nDPI_packet_processed;
+	switch (pkt->link_type) {
+		case DLT_NULL:
+			if (ntohl(*((uint32_t *)&pkt->data[eth_offset])) == 0x00000002) {
+			  	type = ETH_P_IP;
+				} 
+                else {
+			  	type = ETH_P_IPV6;
+				}
+			ip_offset = 4 + eth_offset;
+			break;
+		case DLT_EN10MB:
+			ethernet = (struct ndpi_ethhdr*) &pkt->data[eth_offset];
+			ip_offset = sizeof(struct ndpi_ethhdr) + eth_offset;
+			type = pkt->eth_type;
+			break;
+		default:
+			Weird("Non IP/Ethernet packet");
+			return;
+	}
+	
+    if (type == ETH_P_IP) {
+        ip = (struct ndpi_iphdr *)&pkt->data[ip_offset];
+        ip6 = nullptr;
+    } else if (type == ETH_P_IPV6) {
+        ip = nullptr;
+        ip6 = (struct ndpi_ipv6hdr *)&pkt->data[ip_offset];
+    }
+
+    ip_size = pkt->len - ip_offset;
+    if ( ! end_detection ) {
+        u_int enough_packets = ( ((proto == TRANSPORT_UDP) && nDPI_packet_processed > MAX_PACKET_UDP) || ((proto == TRANSPORT_TCP) && nDPI_packet_processed > MAX_PACKET_TCP)) ? 1 : 0;
+
+        struct ndpi_flow_input_info input_info;
+
+        memset(&input_info, '\0', sizeof(input_info));
+
+        input_info.in_pkt_dir = NDPI_IN_PKT_DIR_UNKNOWN;
+        input_info.seen_flow_beginning = NDPI_FLOW_BEGINNING_UNKNOWN;
+
+        l7_protocol = ndpi_detection_process_packet(session_mgr->ndpi_struct, nDPI_flow,
+                    ip != nullptr ? (uint8_t *)ip : (uint8_t *)ip6,
+                    ip_size, time_ms, &input_info);
+
+        enough_packets |= nDPI_flow->fail_with_unknown;
+        if ( enough_packets || (l7_protocol.app_protocol != NDPI_PROTOCOL_UNKNOWN ) ) {
+            if ( ( ! enough_packets ) && ndpi_extra_dissection_possible(session_mgr->ndpi_struct, nDPI_flow))
+                ;
+            else {
+                end_detection = 1;
+                if ( l7_protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN ) {
+                    u_int8_t proto_guessed;
+                    
+                    l7_protocol = ndpi_detection_giveup(session_mgr->ndpi_struct, nDPI_flow, 1, &proto_guessed);
+                }
+            }
+        }
+    }
+}
+
+void Connection::NdpiInformation() {
+    const char* name_server = ndpi_get_flow_info(nDPI_flow, &l7_protocol);
+    if ( ndpi_analyzer ) {
+        if ( l7_protocol.master_protocol != NDPI_PROTOCOL_UNKNOWN ) {
+            ndpi_analyzer->InsertValue(0, ndpi_get_proto_name(session_mgr->ndpi_struct, l7_protocol.master_protocol));
+        }
+        if ( l7_protocol.category != NDPI_PROTOCOL_CATEGORY_UNSPECIFIED ) {
+            ndpi_analyzer->InsertValue(2, ndpi_category_get_name(session_mgr->ndpi_struct, l7_protocol.category));
+        }
+        ndpi_analyzer->InsertValue(1, ndpi_get_proto_name(session_mgr->ndpi_struct, l7_protocol.app_protocol));
+        ndpi_analyzer->InsertValue(3, nDPI_packet_processed);
+        ndpi_analyzer->InsertValue(4, ndpi_is_encrypted_proto(session_mgr->ndpi_struct, l7_protocol));
+        if ( name_server )
+            ndpi_analyzer->InsertValue(5, name_server);
+    }
+    /*
+    if ( l7_protocol.master_protocol == NDPI_PROTOCOL_HTTP ) {
+        if ( nDPI_flow->http.user_agent[0] != '\0' && nDPI_flow->http.detected_os[0] != '\0' )
+            fprintf(stderr, "user agent %s and OS %s\n", nDPI_flow->http.user_agent, nDPI_flow->http.detected_os);
+    }
+    if ( l7_protocol.master_protocol == NDPI_PROTOCOL_HTTP ) {
+        if(nDPI_flow->http.url[0] != '\0') {
+            ndpi_risk_enum risk= ndpi_validate_url(nDPI_flow->http.url);
+            if ( risk != NDPI_NO_RISK )
+                fprintf(stderr, "risk type %s\n", ndpi_risk2str(risk));
+        }
+    }
+    */
+    if ( nDPI_flow->risk ) {
+        u_int16_t cli_score, srv_score;
+
+        ndpi_analyzer->InsertValue(6, ndpi_risk2str(nDPI_flow->risk_infos->id));
+        ndpi_analyzer->InsertValue(7, ndpi_risk2score(nDPI_flow->risk, &cli_score, &srv_score));
+    }
+    
+    }
+#endif
 
 } // namespace zeek

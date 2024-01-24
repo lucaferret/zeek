@@ -5685,6 +5685,21 @@ export {
 	option max_payload_size = 100;
 }
 
+module NDPI;
+
+export {
+	type NDPI::ndpi_info: record {
+		proto: string &optional;
+		app_proto: string &optional;
+		category: string &optional;
+		num_packet_analyzed: count &optional;
+		encripted: count &optional;
+		host_server_name: string &optional;
+		risk_type: string &optional;
+		risk_score: count &optional;
+	};
+}
+
 module Cluster;
 export {
 	type Cluster::Pool: record {};
