@@ -203,7 +203,8 @@ void flip_conn_val(const RecordValPtr& conn_val) {
 
 const RecordValPtr& Connection::GetVal() {
     if ( ! conn_val ) {
-        conn_val = make_intrusive<RecordVal>(id::connection);
+        conn_val = 
+        make_intrusive<RecordVal>(id::connection);
 
         TransportProto prot_type = ConnTransport();
 
@@ -483,6 +484,7 @@ void Connection::NdpiAnalyzePacket(Packet* pkt) {
             else {
                 end_detection = 1;
                 if ( l7_protocol.app_protocol == NDPI_PROTOCOL_UNKNOWN ) {
+                    fprintf(stderr, "ultimo tentativo\n");
                     u_int8_t proto_guessed;
                     
                     l7_protocol = ndpi_detection_giveup(session_mgr->ndpi_struct, nDPI_flow, 1, &proto_guessed);
@@ -520,13 +522,43 @@ void Connection::NdpiInformation() {
         }
     }
     */
+    if(nDPI_flow->risk) {
+        u_int i;
+        u_int16_t cli_score, srv_score;
+        //char* out = (char*) malloc(sizeof(char*));
+        //string out = "";
+        int total_len = 4;
+        char* out = (char *) malloc(sizeof(char*) + total_len);
+        out[0] = '\0';
+        strcat(out, " - ");
+
+        for(i=0; i<NDPI_MAX_RISK; i++) {
+            ndpi_risk_enum r = (ndpi_risk_enum)i;
+            if(NDPI_ISSET_BIT(nDPI_flow->risk, r)) {
+                //fprintf(stdout, "- %s -", ndpi_risk2str(r));
+                const char* s = ndpi_risk2str(r);
+                total_len += strlen(s);
+                out = (char *) realloc(out, total_len + 4);
+                strcat(out, s);
+                strcat(out, " - ");
+            }
+        }
+
+        //fprintf(stdout, "risk: %s \n", out);
+
+        //fprintf(stdout, "[Risk Score: %u]\n", ndpi_risk2score(nDPI_flow->risk, &cli_score, &srv_score));
+        ndpi_analyzer->InsertValue(6, out);
+        ndpi_analyzer->InsertValue(7, ndpi_risk2score(nDPI_flow->risk, &cli_score, &srv_score));
+        free(out);
+    }
+    /*
     if ( nDPI_flow->risk ) {
         u_int16_t cli_score, srv_score;
-
+        u_int i;
         ndpi_analyzer->InsertValue(6, ndpi_risk2str(nDPI_flow->risk_infos->id));
         ndpi_analyzer->InsertValue(7, ndpi_risk2score(nDPI_flow->risk, &cli_score, &srv_score));
     }
-    
+    */
     }
 #endif
 
