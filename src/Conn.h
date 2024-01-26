@@ -252,6 +252,7 @@ private:
     zeek::analyzer::nDPI::NDPIAnalyzer* ndpi_analyzer;
     int end_detection;
 
+    void LastDetection();
     void NdpiInformation();
 #endif
 
