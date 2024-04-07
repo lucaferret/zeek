@@ -495,7 +495,7 @@ void Connection::NdpiAnalyzePacket(Packet* pkt) {
     }
 }
 
-void Connection::LastDetection() { u_int8_t proto_guessed; l7_protocol = ndpi_detection_giveup(session_mgr->ndpi_struct, nDPI_flow, 1, &proto_guessed); }
+void Connection::LastDetection() { u_int8_t proto_guessed; l7_protocol = ndpi_detection_giveup(session_mgr->ndpi_struct, nDPI_flow, &proto_guessed); }
 
 void Connection::NdpiInformation() {
     const char* name_server = ndpi_get_flow_info(nDPI_flow, &l7_protocol);
@@ -529,7 +529,7 @@ void Connection::NdpiInformation() {
         u_int i;
         u_int16_t cli_score, srv_score;
         int total_len = 4;
-        char* out = (char *) malloc(sizeof(char*) + total_len);
+        char* out = (char *) malloc(sizeof(char*) * total_len);
         out[0] = '\0';
         strcat(out, " * ");
 
@@ -538,7 +538,7 @@ void Connection::NdpiInformation() {
             if(NDPI_ISSET_BIT(nDPI_flow->risk, r)) {
                 const char* s = ndpi_risk2str(r);
                 total_len += strlen(s);
-                out = (char *) realloc(out, total_len + 4);
+                out = (char *) realloc(out, (total_len + 4) * sizeof(char *));
                 strcat(out, s);
                 strcat(out, " * ");
             }
