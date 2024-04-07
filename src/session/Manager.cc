@@ -79,7 +79,7 @@ Manager::Manager() {
     stats = new detail::ProtocolStats(); 
 
 #ifdef NDPI_LIB
-    ndpi_struct = ndpi_init_detection_module(ndpi_no_prefs);
+    ndpi_struct = ndpi_init_detection_module(NULL);
     NDPI_PROTOCOL_BITMASK protos;
     NDPI_BITMASK_SET_ALL(protos);
     ndpi_set_protocol_detection_bitmask2(ndpi_struct, &protos);
